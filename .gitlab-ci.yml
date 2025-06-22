@@ -1,0 +1,25 @@
+# .gitlab-ci.yml for Java Maven Project
+
+stages:
+  - build
+  - test
+
+variables:
+  MAVEN_CLI_OPTS: "-B -ntp"
+
+cache:
+  paths:
+    - .m2/repository
+
+build:
+  stage: build
+  script:
+    - mvn $MAVEN_CLI_OPTS clean compile
+  artifacts:
+    paths:
+      - target/*.jar
+
+test:
+  stage: test
+  script:
+    - mvn $MAVEN_CLI_OPTS test
