@@ -10,5 +10,12 @@ import java.lang.annotation.Target;
 public @interface AutogentTool {
     String uri();
     String description() default "";
-    String parameters() default ""; // JSON string or key for parameter details
+    /**
+     * If empty, path/query/requestBody params will be deduced from method signature and Spring annotations.
+     * If non-empty, this value will override the deduced value.
+     */
+    String pathParams() default ""; // Optional override for path parameter details
+    String queryParams() default ""; // Optional override for query parameter details
+    String requestBody() default ""; // Optional override for request body schema
+    String method() default "POST"; // HTTP method, default POST
 }

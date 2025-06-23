@@ -13,6 +13,16 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -55,15 +65,83 @@ public class AutogentMcpAutoConfiguration implements ApplicationContextAware, Be
                     endpointData.put("app_key", appKey);
                     endpointData.put("uri", toolAnn.uri());
                     endpointData.put("description", toolAnn.description());
-                    try {
-                        if (!toolAnn.parameters().isEmpty()) {
-                            endpointData.put("parameters", new com.fasterxml.jackson.databind.ObjectMapper()
-                                    .readValue(toolAnn.parameters(), Map.class));
+
+                    // Deduce HTTP method if not set in annotation
+                    String httpMethod = toolAnn.method();
+                    boolean methodOverridden = toolAnn.method() != null && !toolAnn.method().equals("POST");
+                    if (!methodOverridden || httpMethod.isEmpty() || httpMethod.equals("POST")) {
+                        if (method.isAnnotationPresent(GetMapping.class)) {
+                            httpMethod = "GET";
+                        } else if (method.isAnnotationPresent(PostMapping.class)) {
+                            httpMethod = "POST";
+                        } else if (method.isAnnotationPresent(PutMapping.class)) {
+                            httpMethod = "PUT";
+                        } else if (method.isAnnotationPresent(DeleteMapping.class)) {
+                            httpMethod = "DELETE";
+                        } else if (method.isAnnotationPresent(PatchMapping.class)) {
+                            httpMethod = "PATCH";
+                        } else if (method.isAnnotationPresent(RequestMapping.class)) {
+                            RequestMapping reqMapping = method.getAnnotation(RequestMapping.class);
+                            RequestMethod[] reqMethods = reqMapping.method();
+                            if (reqMethods.length > 0) {
+                                httpMethod = reqMethods[0].name();
+                            }
                         }
-                    } catch (Exception e) {
-                        log.error("Failed to parse parameters JSON in @AutogentTool for method {}",
-                                method.getName(), e);
-                        continue; // Skip this endpoint, continue with others
+                    }
+                    endpointData.put("method", httpMethod);
+
+                    // Deduce pathParams, queryParams, requestBody if not set in annotation
+                    String pathParams = toolAnn.pathParams();
+                    String queryParams = toolAnn.queryParams();
+                    String requestBody = toolAnn.requestBody();
+                    if (pathParams.isEmpty() || queryParams.isEmpty() || requestBody.isEmpty()) {
+                        Map<String, String> deducedPathParams = new HashMap<>();
+                        Map<String, String> deducedQueryParams = new HashMap<>();
+                        Map<String, String> deducedRequestBody = new HashMap<>();
+                        java.lang.reflect.Parameter[] params = method.getParameters();
+                        for (java.lang.reflect.Parameter param : params) {
+                            if (param.isAnnotationPresent(PathVariable.class)) {
+                                deducedPathParams.put(param.getName(), param.getType().getSimpleName());
+                            } else if (param.isAnnotationPresent(RequestParam.class)) {
+                                deducedQueryParams.put(param.getName(), param.getType().getSimpleName());
+                            } else if (param.isAnnotationPresent(RequestBody.class)) {
+                                // For request body, if it's a Map, just note as 'object', else use class fields
+                                Class<?> type = param.getType();
+                                if (Map.class.isAssignableFrom(type)) {
+                                    deducedRequestBody.put(param.getName(), "object");
+                                } else {
+                                    for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+                                        deducedRequestBody.put(field.getName(), field.getType().getSimpleName());
+                                    }
+                                }
+                            }
+                        }
+                        // FIX: Put the actual Map, not a JSON string, into endpointData
+                        if (pathParams.isEmpty() && !deducedPathParams.isEmpty()) {
+                            endpointData.put("pathParams", deducedPathParams);
+                        } else if (!pathParams.isEmpty()) {
+                            endpointData.put("pathParams", pathParams);
+                        }
+                        if (queryParams.isEmpty() && !deducedQueryParams.isEmpty()) {
+                            endpointData.put("queryParams", deducedQueryParams);
+                        } else if (!queryParams.isEmpty()) {
+                            endpointData.put("queryParams", queryParams);
+                        }
+                        if (requestBody.isEmpty() && !deducedRequestBody.isEmpty()) {
+                            endpointData.put("requestBody", deducedRequestBody);
+                        } else if (!requestBody.isEmpty()) {
+                            endpointData.put("requestBody", requestBody);
+                        }
+                    } else {
+                        if (!pathParams.isEmpty()) {
+                            endpointData.put("pathParams", pathParams);
+                        }
+                        if (!queryParams.isEmpty()) {
+                            endpointData.put("queryParams", queryParams);
+                        }
+                        if (!requestBody.isEmpty()) {
+                            endpointData.put("requestBody", requestBody);
+                        }
                     }
                     try {
                         log.info("Registering endpoint with MCP: {}", endpointData);
