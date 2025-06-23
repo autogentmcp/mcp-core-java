@@ -18,4 +18,8 @@ public @interface AutogentTool {
     String queryParams() default ""; // Optional override for query parameter details
     String requestBody() default ""; // Optional override for request body schema
     String method() default "POST"; // HTTP method, default POST
+    /**
+     * Content-Type header for this endpoint. Default is application/json.
+     */
+    String contentType() default "";
 }

@@ -90,6 +90,27 @@ public class AutogentMcpAutoConfiguration implements ApplicationContextAware, Be
                     }
                     endpointData.put("method", httpMethod);
 
+                    // Deduce Content-Type (prioritize mapping annotation consumes)
+                    String contentType = toolAnn.contentType();
+                    String mappingConsumes = null;
+                    if (method.isAnnotationPresent(PostMapping.class)) {
+                        PostMapping ann = method.getAnnotation(PostMapping.class);
+                        if (ann.consumes().length > 0) mappingConsumes = ann.consumes()[0];
+                    } else if (method.isAnnotationPresent(PutMapping.class)) {
+                        PutMapping ann = method.getAnnotation(PutMapping.class);
+                        if (ann.consumes().length > 0) mappingConsumes = ann.consumes()[0];
+                    } else if (method.isAnnotationPresent(PatchMapping.class)) {
+                        PatchMapping ann = method.getAnnotation(PatchMapping.class);
+                        if (ann.consumes().length > 0) mappingConsumes = ann.consumes()[0];
+                    } else if (method.isAnnotationPresent(RequestMapping.class)) {
+                        RequestMapping ann = method.getAnnotation(RequestMapping.class);
+                        if (ann.consumes().length > 0) mappingConsumes = ann.consumes()[0];
+                    }
+                    if (mappingConsumes != null && !mappingConsumes.isEmpty()) {
+                        contentType = mappingConsumes;
+                    }
+                    endpointData.put("contentType", contentType);
+
                     // Deduce pathParams, queryParams, requestBody if not set in annotation
                     String pathParams = toolAnn.pathParams();
                     String queryParams = toolAnn.queryParams();
