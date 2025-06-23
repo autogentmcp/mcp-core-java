@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface AutogentTool {
-    String endpointUri();
-    String endpointDescription() default "";
-    String parameterDetails() default ""; // JSON string or key for parameter details
+    String uri();
+    String description() default "";
+    String parameters() default ""; // JSON string or key for parameter details
 }

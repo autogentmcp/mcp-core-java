@@ -11,6 +11,6 @@ import org.springframework.context.annotation.Import;
 @Target(ElementType.TYPE)
 @Import(EnableAutogentMcpModule.class)
 public @interface EnableAutogentMcp {
-    String appKey();
-    String appDescription() default "";
+    String key();
+    String description() default "";
 }

@@ -53,15 +53,15 @@ public class AutogentMcpAutoConfiguration implements ApplicationContextAware, Be
                 if (toolAnn != null) {
                     Map<String, Object> endpointData = new HashMap<>();
                     endpointData.put("app_key", appKey);
-                    endpointData.put("endpoint_uri", toolAnn.endpointUri());
-                    endpointData.put("endpoint_description", toolAnn.endpointDescription());
+                    endpointData.put("uri", toolAnn.uri());
+                    endpointData.put("description", toolAnn.description());
                     try {
-                        if (!toolAnn.parameterDetails().isEmpty()) {
-                            endpointData.put("parameter_details", new com.fasterxml.jackson.databind.ObjectMapper()
-                                    .readValue(toolAnn.parameterDetails(), Map.class));
+                        if (!toolAnn.parameters().isEmpty()) {
+                            endpointData.put("parameters", new com.fasterxml.jackson.databind.ObjectMapper()
+                                    .readValue(toolAnn.parameters(), Map.class));
                         }
                     } catch (Exception e) {
-                        log.error("Failed to parse parameterDetails JSON in @AutogentTool for method {}",
+                        log.error("Failed to parse parameters JSON in @AutogentTool for method {}",
                                 method.getName(), e);
                         continue; // Skip this endpoint, continue with others
                     }
@@ -91,11 +91,11 @@ public class AutogentMcpAutoConfiguration implements ApplicationContextAware, Be
         if (mainBean != null) {
             EnableAutogentMcp ann = AnnotationUtils.findAnnotation(mainBean.getClass(), EnableAutogentMcp.class);
             if (ann != null) {
-                appKey = ann.appKey();
+                appKey = ann.key();
                 registryClient = new RegistryClient(registryUrl, apiKey);
                 Map<String, Object> appData = new HashMap<>();
-                appData.put("app_key", ann.appKey());
-                appData.put("app_description", ann.appDescription());
+                appData.put("app_key", ann.key());
+                appData.put("app_description", ann.description());
                 appData.put("base_domain", baseDomain);
                 appData.put("app_healthcheck_endpoint", appHealthcheckEndpoint);
                 try {
