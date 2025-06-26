@@ -5,11 +5,36 @@
 
   <groupId>com.autogentmcp</groupId>
   <artifactId>mcp-core-java</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.0.1</version>
 
   <name>mcp-core-java</name>
-  <!-- FIXME change it to the project's website -->
+  <description>Java SDK for MCP registry server integration, supporting agent/tool registration, heartbeat monitoring, and Spring Boot integration.</description>
   <url>http://www.example.com</url>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>spranab</id>
+      <name>Pranab Sarkar</name>
+      <email>developer@pranab.co.in</email>
+      <organization>Individual</organization>
+      <organizationUrl>https://autogentmcp.com/</organizationUrl>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git://github.com/autogentmcp/mcp-core-java.git</connection>
+    <developerConnection>scm:git:ssh://github.com:autogentmcp/mcp-core-java.git</developerConnection>
+    <url>https://github.com/autogentmcp/mcp-core-java</url>
+    <tag>HEAD</tag>
+  </scm>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -65,7 +90,22 @@
   </dependencies>
 
   <build>
-    <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
+    <plugins>
+      <plugin>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.8.0</version>
+        <extensions>true</extensions>
+        <configuration>
+           <publishingServerId>central</publishingServerId>
+           <autoPublish>true</autoPublish>
+           <waitUntil>published</waitUntil>
+        </configuration>
+      </plugin>
+      <!-- ...other plugins (compiler, surefire, etc.) can go here ... -->
+    </plugins>
+    <pluginManagement>
+      <!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
       <plugins>
         <!-- clean lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#clean_Lifecycle -->
         <plugin>
