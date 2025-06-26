@@ -29,6 +29,9 @@ jobs:
           echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
           echo RELOADAGENT | gpg-connect-agent
 
+      - name: List GPG secret keys (debug)
+        run: gpg --list-secret-keys --keyid-format LONG
+
       - name: Configure Maven settings
         run: |
           mkdir -p ~/.m2
