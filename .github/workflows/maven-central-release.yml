@@ -66,10 +66,11 @@ jobs:
           find target -name "*.asc" -type f | while read -r asc_file; do
             original_file="${asc_file%.asc}"
             echo "Verifying signature for $original_file"
-            if gpg --verify "$asc_file" "$original_file"; then
+            if gpg --verify "$asc_file" "$original_file" 2>&1 | grep -q "Good signature"; then
               echo "✅ Valid signature for $original_file"
             else
               echo "❌ Invalid signature for $original_file"
+              gpg --verify "$asc_file" "$original_file"
               exit 1
             fi
           done
@@ -77,4 +78,4 @@ jobs:
       - name: Deploy to Maven Central
         env:
           GPG_TTY: $(tty)
-        run: mvn --batch-mode -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }} deploy
+        run: mvn --batch-mode -Possrh -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }} deploy
