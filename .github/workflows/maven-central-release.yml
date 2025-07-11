@@ -56,6 +56,24 @@ jobs:
           </settings>
           EOF
 
+      - name: Build and sign artifacts
+        env:
+          GPG_TTY: $(tty)
+        run: mvn --batch-mode -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }} clean verify
+
+      - name: Verify GPG signatures
+        run: |
+          find target -name "*.asc" -type f | while read -r asc_file; do
+            original_file="${asc_file%.asc}"
+            echo "Verifying signature for $original_file"
+            if gpg --verify "$asc_file" "$original_file"; then
+              echo "✅ Valid signature for $original_file"
+            else
+              echo "❌ Invalid signature for $original_file"
+              exit 1
+            fi
+          done
+
       - name: Deploy to Maven Central
         env:
           GPG_TTY: $(tty)
