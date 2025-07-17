@@ -1,59 +1,71 @@
 package com.autogentmcp.registry;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.io.IOException;
 import java.util.Map;
 
 public class RegistryClient {
-    private final String baseUrl;
-    private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
-    private final String apiKey;
+    private static final Logger log = LoggerFactory.getLogger(RegistryClient.class);
+    protected final String baseUrl;
+    protected final CloseableHttpClient httpClient;
+    protected final ObjectMapper objectMapper;
+    protected final String apiKey;
 
     public RegistryClient(String baseUrl, String apiKey) {
+        this(baseUrl, apiKey, HttpClients.createDefault());
+    }
+
+    public RegistryClient(String baseUrl, String apiKey, CloseableHttpClient httpClient) {
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = httpClient;
         this.objectMapper = new ObjectMapper();
     }
 
-    public String registerApplication(Map<String, Object> appData) throws Exception {
-        String body = objectMapper.writeValueAsString(appData);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/register/application"))
-                .header("Content-Type", "application/json")
-                .header("X-API-KEY", apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        return response.body();
+    protected CloseableHttpResponse executePost(HttpPost post) throws IOException {
+        log.debug("Executing POST request to URL: {}", post.getURI());
+        return httpClient.execute(post);
     }
 
-    public String registerEndpoint(Map<String, Object> endpointData) throws Exception {
-        String body = objectMapper.writeValueAsString(endpointData);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/register/endpoint"))
-                .header("Content-Type", "application/json")
-                .header("X-API-KEY", apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        return response.body();
+    protected CloseableHttpResponse executePut(HttpPut put) throws IOException {
+        log.debug("Executing PUT request to URL: {}", put.getURI());
+        return httpClient.execute(put);
     }
 
-    public String sendHeartbeat(Map<String, Object> heartbeatData) throws Exception {
-        String body = objectMapper.writeValueAsString(heartbeatData);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/heartbeat"))
-                .header("Content-Type", "application/json")
-                .header("X-API-KEY", apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        return response.body();
+    public String registerEndpointsBatch(String appKey, String environment, java.util.List<Map<String, Object>> endpoints) throws IOException {
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("app_key", appKey);
+        payload.put("environment", environment);
+        payload.put("endpoints", endpoints);
+        String body = objectMapper.writeValueAsString(payload);
+        HttpPost post = new HttpPost(baseUrl + "/register/endpoints");
+        post.setHeader("Content-Type", "application/json");
+        post.setHeader("X-API-Key", apiKey);
+        post.setHeader("X-App-Key", appKey);
+        post.setEntity(new StringEntity(body, "UTF-8"));
+        try (CloseableHttpResponse response = executePost(post)) {
+            return EntityUtils.toString(response.getEntity(), "UTF-8");
+        }
     }
-   
+
+    public String updateApplication(String appKey, Map<String, Object> updateData) throws IOException {
+        String body = objectMapper.writeValueAsString(updateData);
+        HttpPut put = new HttpPut(baseUrl + "/applications/" + appKey);
+        put.setHeader("Content-Type", "application/json");
+        put.setHeader("X-API-Key", apiKey);
+        put.setHeader("X-App-Key", appKey);
+        put.setEntity(new StringEntity(body, "UTF-8"));
+        try (CloseableHttpResponse response = executePut(put)) {
+            return EntityUtils.toString(response.getEntity(), "UTF-8");
+        }
+    }
 }

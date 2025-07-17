@@ -8,6 +8,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface AutogentTool {
+    String name() default ""; // Optional override for name parameter details
     String uri();
     String description() default "";
     /**
@@ -21,5 +22,6 @@ public @interface AutogentTool {
     /**
      * Content-Type header for this endpoint. Default is application/json.
      */
+    boolean isPublic() default false; // Indicates if the tool is public
     String contentType() default "";
 }
