@@ -21,7 +21,7 @@ Add to your Maven `pom.xml`:
 <dependency>
   <groupId>com.autogentmcp</groupId>
   <artifactId>mcp-core-java</artifactId>
-  <version>0.0.2</version>
+  <version>0.0.3</version>
 </dependency>
 ```
 
