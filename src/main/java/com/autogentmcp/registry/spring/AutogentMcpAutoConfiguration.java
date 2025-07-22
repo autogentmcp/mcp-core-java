@@ -3,6 +3,7 @@ package com.autogentmcp.registry.spring;
 import com.autogentmcp.registry.AutogentTool;
 import com.autogentmcp.registry.EnableAutogentMcp;
 import com.autogentmcp.registry.RegistryClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.annotation.PostConstruct;
 
@@ -95,63 +96,158 @@ public class AutogentMcpAutoConfiguration implements ApplicationContextAware, Be
                     }
                     endpointData.put("contentType", contentType);
 
-                    // Deduce pathParams, queryParams, requestBody if not set in annotation
-                    String pathParams = toolAnn.pathParams();
-                    String queryParams = toolAnn.queryParams();
-                    String requestBody = toolAnn.requestBody();
-                    if (pathParams.isEmpty() || queryParams.isEmpty() || requestBody.isEmpty()) {
-                        Map<String, String> deducedPathParams = new HashMap<>();
-                        Map<String, String> deducedQueryParams = new HashMap<>();
-                        Map<String, String> deducedRequestBody = new HashMap<>();
-                        java.lang.reflect.Parameter[] params = method.getParameters();
-                        for (java.lang.reflect.Parameter param : params) {
-                            if (param.isAnnotationPresent(PathVariable.class)) {
-                                deducedPathParams.put(param.getName(), param.getType().getSimpleName());
-                            } else if (param.isAnnotationPresent(RequestParam.class)) {
-                                deducedQueryParams.put(param.getName(), param.getType().getSimpleName());
-                            } else if (param.isAnnotationPresent(RequestBody.class)) {
-                                // For request body, if it's a Map, just note as 'object', else use class fields
-                                Class<?> type = param.getType();
-                                if (Map.class.isAssignableFrom(type)) {
-                                    deducedRequestBody.put(param.getName(), "object");
-                                } else {
-                                    for (java.lang.reflect.Field field : type.getDeclaredFields()) {
-                                        deducedRequestBody.put(field.getName(), field.getType().getSimpleName());
+                    // Deduce pathParams, queryParams, requestBody and responseBody
+                    Map<String, Object> deducedPathParams = new HashMap<>();
+                    Map<String, Object> deducedQueryParams = new HashMap<>();
+                    Map<String, Object> deducedRequestBody = new HashMap<>();
+                    Map<String, Object> deducedResponseBody = new HashMap<>();
+                    
+                    // Process method parameters
+                    java.lang.reflect.Parameter[] params = method.getParameters();
+                    for (java.lang.reflect.Parameter param : params) {
+                        String paramName = param.getName();
+                        String paramType = param.getType().getSimpleName();
+                        
+                        if (param.isAnnotationPresent(PathVariable.class)) {
+                            PathVariable pathVar = param.getAnnotation(PathVariable.class);
+                            String actualName = pathVar.value().isEmpty() ? pathVar.name() : pathVar.value();
+                            if (actualName.isEmpty()) actualName = paramName;
+                            
+                            Map<String, Object> pathParamInfo = new HashMap<>();
+                            pathParamInfo.put("type", paramType);
+                            pathParamInfo.put("required", pathVar.required());
+                            deducedPathParams.put(actualName, pathParamInfo);
+                            
+                        } else if (param.isAnnotationPresent(RequestParam.class)) {
+                            RequestParam reqParam = param.getAnnotation(RequestParam.class);
+                            String actualName = reqParam.value().isEmpty() ? reqParam.name() : reqParam.value();
+                            if (actualName.isEmpty()) actualName = paramName;
+                            
+                            Map<String, Object> queryParamInfo = new HashMap<>();
+                            queryParamInfo.put("type", paramType);
+                            queryParamInfo.put("required", reqParam.required());
+                            // Handle default value safely
+                            String defaultValue = reqParam.defaultValue();
+                            if (!defaultValue.equals("\n\t\t\n\t\t\n\uE000\uE001\uE002\n\t\t\t\t\n")) { // Spring's DEFAULT_NONE value
+                                queryParamInfo.put("defaultValue", defaultValue);
+                            }
+                            deducedQueryParams.put(actualName, queryParamInfo);
+                            
+                        } else if (param.isAnnotationPresent(RequestBody.class)) {
+                            Class<?> type = param.getType();
+                            if (Map.class.isAssignableFrom(type)) {
+                                deducedRequestBody.put("type", "object");
+                                deducedRequestBody.put("description", "Generic object/map");
+                            } else if (type.isPrimitive() || type.getName().startsWith("java.lang")) {
+                                deducedRequestBody.put("type", paramType);
+                                deducedRequestBody.put("description", "Simple " + paramType + " value");
+                            } else {
+                                // Complex object - analyze its fields
+                                Map<String, Object> fields = new HashMap<>();
+                                java.lang.reflect.Field[] declaredFields = type.getDeclaredFields();
+                                for (java.lang.reflect.Field field : declaredFields) {
+                                    if (!java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                                        Map<String, Object> fieldInfo = new HashMap<>();
+                                        fieldInfo.put("type", field.getType().getSimpleName());
+                                        fieldInfo.put("required", true); // Default to required
+                                        fields.put(field.getName(), fieldInfo);
                                     }
                                 }
+                                deducedRequestBody.put("type", "object");
+                                deducedRequestBody.put("properties", fields);
                             }
                         }
-                        // FIX: Put the actual Map, not a JSON string, into endpointData
-                        if (pathParams.isEmpty() && !deducedPathParams.isEmpty()) {
-                            endpointData.put("pathParams", deducedPathParams);
-                        } else if (!pathParams.isEmpty()) {
-                            endpointData.put("pathParams", pathParams);
-                        }
-                        if (queryParams.isEmpty() && !deducedQueryParams.isEmpty()) {
-                            endpointData.put("queryParams", deducedQueryParams);
-                        } else if (!queryParams.isEmpty()) {
-                            endpointData.put("queryParams", queryParams);
-                        }
-                        if (requestBody.isEmpty() && !deducedRequestBody.isEmpty()) {
-                            endpointData.put("requestBody", deducedRequestBody);
-                        } else if (!requestBody.isEmpty()) {
-                            endpointData.put("requestBody", requestBody);
-                        }
-                    } else {
-                        if (!pathParams.isEmpty()) {
-                            endpointData.put("pathParams", pathParams);
-                        }
-                        if (!queryParams.isEmpty()) {
-                            endpointData.put("queryParams", queryParams);
-                        }
-                        if (!requestBody.isEmpty()) {
-                            endpointData.put("requestBody", requestBody);
+                    }
+                    
+                    // Process response body (return type)
+                    Class<?> returnType = method.getReturnType();
+                    if (returnType != void.class && returnType != Void.class) {
+                        if (Map.class.isAssignableFrom(returnType)) {
+                            deducedResponseBody.put("type", "object");
+                            deducedResponseBody.put("description", "Generic object/map response");
+                        } else if (returnType.isPrimitive() || returnType.getName().startsWith("java.lang")) {
+                            deducedResponseBody.put("type", returnType.getSimpleName());
+                            deducedResponseBody.put("description", "Simple " + returnType.getSimpleName() + " response");
+                        } else {
+                            // Complex object - analyze its fields
+                            Map<String, Object> fields = new HashMap<>();
+                            java.lang.reflect.Field[] declaredFields = returnType.getDeclaredFields();
+                            for (java.lang.reflect.Field field : declaredFields) {
+                                if (!java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                                    Map<String, Object> fieldInfo = new HashMap<>();
+                                    fieldInfo.put("type", field.getType().getSimpleName());
+                                    fields.put(field.getName(), fieldInfo);
+                                }
+                            }
+                            deducedResponseBody.put("type", "object");
+                            deducedResponseBody.put("properties", fields);
                         }
                     }
+                    
+                    // Add deduced or annotation-provided parameters to endpoint data
+                    if (!toolAnn.pathParams().isEmpty()) {
+                        try {
+                            // Try to parse as JSON if it looks like JSON, otherwise use as string
+                            if (toolAnn.pathParams().trim().startsWith("{")) {
+                                ObjectMapper mapper = new ObjectMapper();
+                                endpointData.put("pathParams", mapper.readValue(toolAnn.pathParams(), Map.class));
+                            } else {
+                                endpointData.put("pathParams", toolAnn.pathParams());
+                            }
+                        } catch (Exception e) {
+                            endpointData.put("pathParams", toolAnn.pathParams());
+                        }
+                    } else if (!deducedPathParams.isEmpty()) {
+                        endpointData.put("pathParams", deducedPathParams);
+                    }
+                    
+                    if (!toolAnn.queryParams().isEmpty()) {
+                        try {
+                            if (toolAnn.queryParams().trim().startsWith("{")) {
+                                ObjectMapper mapper = new ObjectMapper();
+                                endpointData.put("queryParams", mapper.readValue(toolAnn.queryParams(), Map.class));
+                            } else {
+                                endpointData.put("queryParams", toolAnn.queryParams());
+                            }
+                        } catch (Exception e) {
+                            endpointData.put("queryParams", toolAnn.queryParams());
+                        }
+                    } else if (!deducedQueryParams.isEmpty()) {
+                        endpointData.put("queryParams", deducedQueryParams);
+                    }
+                    
+                    if (!toolAnn.requestBody().isEmpty()) {
+                        try {
+                            if (toolAnn.requestBody().trim().startsWith("{")) {
+                                ObjectMapper mapper = new ObjectMapper();
+                                endpointData.put("requestBody", mapper.readValue(toolAnn.requestBody(), Map.class));
+                            } else {
+                                endpointData.put("requestBody", toolAnn.requestBody());
+                            }
+                        } catch (Exception e) {
+                            endpointData.put("requestBody", toolAnn.requestBody());
+                        }
+                    } else if (!deducedRequestBody.isEmpty()) {
+                        endpointData.put("requestBody", deducedRequestBody);
+                    }
+                    
+                    // Always add response body if deduced
+                    if (!deducedResponseBody.isEmpty()) {
+                        endpointData.put("responseBody", deducedResponseBody);
+                    }
+                    
+                    // Log what we detected
+                    log.debug("Parameter detection for {}: pathParams={}, queryParams={}, requestBody={}, responseBody={}", 
+                             method.getName(), 
+                             endpointData.containsKey("pathParams") ? endpointData.get("pathParams") : "none",
+                             endpointData.containsKey("queryParams") ? endpointData.get("queryParams") : "none", 
+                             endpointData.containsKey("requestBody") ? endpointData.get("requestBody") : "none",
+                             endpointData.containsKey("responseBody") ? endpointData.get("responseBody") : "none");
                     // Add to collector
                     EndpointCollector.add(endpointData);
                     log.info("Added endpoint to collector: name={}, path={}, method={}", 
                              endpointData.get("name"), endpointData.get("path"), endpointData.get("method"));
+                    log.debug("Endpoint details: {}", endpointData);
                 }
             }
             // On last bean, log that we're done processing but don't register yet
@@ -180,7 +276,7 @@ public class AutogentMcpAutoConfiguration implements ApplicationContextAware, Be
                 
                 registryClient = new RegistryClient(registryUrl, apiKey);
                 Map<String, Object> appData = new HashMap<>();
-                appData.put("name", ann.key());
+                // appData.put("name", ann.key());
                 appData.put("description", ann.description());
                 appData.put("healthCheckUrl", appHealthcheckEndpoint);
                 

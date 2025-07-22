@@ -5,7 +5,7 @@
 
   <groupId>com.autogentmcp</groupId>
   <artifactId>mcp-core-java</artifactId>
-  <version>0.0.3</version>
+  <version>0.0.4</version>
 
   <name>mcp-core-java</name>
   <description>Java SDK for MCP registry server integration, supporting agent/tool registration, heartbeat monitoring, and Spring Boot integration.</description>
